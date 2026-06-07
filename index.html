@@ -1,295 +1,196 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Soil Moisture Dashboard</title>
-
-  <!-- Chart.js — free, no account needed -->
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Soil Monitor v2</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-
-  <!-- Google Font: Courier Prime (data/terminal feel) + DM Sans (clean labels) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=DM+Sans:wght@300;500;700&display=swap" rel="stylesheet" />
-
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=DM+Sans:wght@300;500;700&display=swap" rel="stylesheet"/>
   <style>
-    /* ── Design: Natural/scientific lab notebook aesthetic ── */
     :root {
-      --bg:         #f5f0e8;
-      --surface:    #fffdf8;
-      --border:     #c8bfa8;
-      --accent:     #3a7d44;   /* forest green */
-      --accent2:    #b5631a;   /* amber/rust */
-      --text:       #2a2118;
-      --muted:      #7a6f60;
-      --danger:     #c0392b;
-      --warn:       #e67e22;
-      --good:       #27ae60;
-      --grid-line:  rgba(0,0,0,0.06);
-      --chart-line: #3a7d44;
+      --bg:      #f5f0e8;
+      --surface: #fffdf8;
+      --border:  #c8bfa8;
+      --accent:  #3a7d44;
+      --text:    #2a2118;
+      --muted:   #7a6f60;
+      --danger:  #c0392b;
+      --warn:    #e67e22;
+      --good:    #27ae60;
+      --blue:    #2471a3;
+      --grid:    rgba(0,0,0,0.055);
     }
-
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     body {
       background: var(--bg);
       color: var(--text);
       font-family: 'DM Sans', sans-serif;
       font-weight: 300;
       min-height: 100vh;
-      /* Subtle graph-paper texture */
       background-image:
-        linear-gradient(var(--grid-line) 1px, transparent 1px),
-        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
       background-size: 28px 28px;
     }
-
     header {
-      padding: 2.5rem 2rem 1.5rem;
+      padding: 2rem 2rem 1.2rem;
       border-bottom: 2px solid var(--border);
-      display: flex;
-      align-items: flex-end;
-      gap: 1.5rem;
-      background: rgba(255,253,248,0.85);
+      background: rgba(255,253,248,0.9);
       backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
-
-    .header-icon {
-      font-size: 2.8rem;
-      line-height: 1;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
-    }
-
+    .header-icon { font-size: 2.4rem; line-height: 1; }
     .header-text h1 {
       font-family: 'Courier Prime', monospace;
-      font-size: 1.6rem;
+      font-size: 1.5rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
       color: var(--accent);
     }
-
-    .header-text p {
-      font-size: 0.8rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      margin-top: 0.2rem;
-    }
-
-    .status-dot {
+    .header-text p { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.07em; text-transform: uppercase; margin-top: 0.2rem; }
+    .live-badge {
       margin-left: auto;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
-      font-size: 0.75rem;
+      gap: 0.45rem;
+      font-size: 0.73rem;
       color: var(--muted);
       letter-spacing: 0.05em;
     }
-
-    .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--muted);
-      animation: pulse 2s infinite;
-    }
-    .dot.live { background: var(--good); }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .dot.on { background: var(--good); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     main {
-      max-width: 960px;
+      max-width: 980px;
       margin: 0 auto;
-      padding: 2rem 1.5rem 4rem;
+      padding: 1.8rem 1.4rem 4rem;
       display: flex;
       flex-direction: column;
-      gap: 1.8rem;
+      gap: 1.5rem;
     }
 
-    /* ── Current Reading card ── */
+    /* ── Cards ── */
     .card {
       background: var(--surface);
       border: 1.5px solid var(--border);
       border-radius: 4px;
-      padding: 1.5rem 2rem;
+      padding: 1.4rem 1.8rem;
       box-shadow: 3px 3px 0 var(--border);
     }
-
     .card-label {
       font-family: 'Courier Prime', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.15em;
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       color: var(--muted);
-      margin-bottom: 0.8rem;
       border-bottom: 1px dashed var(--border);
       padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
     }
 
-    /* ── Big moisture readout ── */
-    .live-reading {
-      display: flex;
-      align-items: flex-end;
-      gap: 1rem;
+    /* ── Two-column live row ── */
+    .live-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
     }
+    @media (max-width: 560px) { .live-grid { grid-template-columns: 1fr; } }
 
-    .moisture-value {
+    /* ── Big number readout ── */
+    .readout { display: flex; align-items: flex-end; gap: 0.5rem; margin-bottom: 0.8rem; }
+    .big-num {
       font-family: 'Courier Prime', monospace;
-      font-size: 5rem;
+      font-size: 4rem;
       font-weight: 700;
       line-height: 1;
       color: var(--accent);
-      transition: color 0.6s ease;
+      transition: color 0.5s;
     }
+    .big-num.warn { color: var(--warn); }
+    .big-num.dry  { color: var(--danger); }
+    .big-num.blue { color: var(--blue); }
+    .unit { font-size: 1.4rem; color: var(--muted); margin-bottom: 0.6rem; }
 
-    .moisture-value.warn  { color: var(--warn); }
-    .moisture-value.dry   { color: var(--danger); }
-
-    .moisture-unit {
-      font-size: 1.8rem;
-      color: var(--muted);
-      margin-bottom: 0.7rem;
-    }
-
-    .moisture-label {
-      margin-left: auto;
-      text-align: right;
-    }
-
-    .moisture-label .condition {
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-    }
-
-    .moisture-label .timestamp {
-      font-size: 0.72rem;
-      color: var(--muted);
-      font-family: 'Courier Prime', monospace;
-      margin-top: 0.3rem;
-    }
-
-    /* ── Gauge bar ── */
-    .gauge-bar {
-      margin-top: 1.2rem;
-      height: 12px;
-      background: #e0d8c8;
-      border-radius: 2px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-
-    .gauge-fill {
-      height: 100%;
-      width: 0%;
-      background: var(--accent);
-      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1), background 0.6s ease;
-      border-radius: 2px;
-    }
-
+    /* ── Gauge ── */
+    .gauge { height: 10px; background: #e0d8c8; border-radius: 2px; border: 1px solid var(--border); overflow: hidden; }
+    .gauge-fill { height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width 0.7s ease, background 0.5s; }
     .gauge-fill.warn { background: var(--warn); }
     .gauge-fill.dry  { background: var(--danger); }
+    .gauge-fill.blue { background: var(--blue); }
+    .gauge-ticks { display: flex; justify-content: space-between; margin-top: 0.25rem; font-size: 0.62rem; color: var(--muted); font-family: 'Courier Prime', monospace; }
 
-    .gauge-ticks {
-      display: flex;
-      justify-content: space-between;
-      margin-top: 0.3rem;
-      font-size: 0.65rem;
-      color: var(--muted);
-      font-family: 'Courier Prime', monospace;
-    }
-
-    /* ── Chart cards ── */
-    .chart-card {
-      background: var(--surface);
-      border: 1.5px solid var(--border);
-      border-radius: 4px;
-      padding: 1.5rem 2rem;
-      box-shadow: 3px 3px 0 var(--border);
-    }
-
-    .chart-header {
-      display: flex;
-      justify-content: space-between;
+    /* ── Water status badge ── */
+    .water-badge {
+      display: inline-flex;
       align-items: center;
-      margin-bottom: 1rem;
-      border-bottom: 1px dashed var(--border);
-      padding-bottom: 0.6rem;
-    }
-
-    .chart-title {
-      font-family: 'Courier Prime', monospace;
-      font-size: 0.7rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    .chart-meta {
-      font-size: 0.68rem;
-      color: var(--muted);
-      font-family: 'Courier Prime', monospace;
-    }
-
-    .chart-wrap {
-      position: relative;
-      height: 220px;
-    }
-
-    /* ── Loading / Error states ── */
-    .placeholder {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 180px;
-      gap: 0.8rem;
-      color: var(--muted);
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 3px;
       font-family: 'Courier Prime', monospace;
       font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      border: 1.5px solid;
+      margin-bottom: 0.8rem;
+      transition: all 0.4s;
     }
-
-    .spinner {
-      width: 28px; height: 28px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent);
-      border-radius: 50%;
-      animation: spin 0.9s linear infinite;
+    .water-badge.yes {
+      background: #e8f5e9;
+      color: #1b5e20;
+      border-color: #43a047;
     }
+    .water-badge.no {
+      background: #fff3e0;
+      color: #e65100;
+      border-color: #fb8c00;
+    }
+    .water-badge.unknown {
+      background: #f5f0e8;
+      color: var(--muted);
+      border-color: var(--border);
+    }
+    .badge-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
 
+    .sub-text { font-size: 0.72rem; color: var(--muted); font-family: 'Courier Prime', monospace; }
+
+    /* ── Charts ── */
+    .chart-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: 4px; padding: 1.4rem 1.8rem; box-shadow: 3px 3px 0 var(--border); }
+    .chart-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border); padding-bottom: 0.5rem; margin-bottom: 1rem; }
+    .chart-title { font-family: 'Courier Prime', monospace; font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+    .chart-meta  { font-size: 0.65rem; color: var(--muted); font-family: 'Courier Prime', monospace; }
+    .chart-wrap  { position: relative; height: 210px; }
+
+    /* ── Tab strip for chart range ── */
+    .tab-strip { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab {
+      padding: 0.3rem 0.9rem;
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.72rem;
+      border: 1.5px solid var(--border);
+      border-radius: 2px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Spinner / placeholder ── */
+    .placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 180px; gap: 0.6rem; color: var(--muted); font-family: 'Courier Prime', monospace; font-size: 0.82rem; }
+    .spinner { width: 26px; height: 26px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Info footer ── */
-    .info-strip {
-      background: var(--surface);
-      border: 1.5px solid var(--border);
-      border-radius: 4px;
-      padding: 1rem 2rem;
-      box-shadow: 3px 3px 0 var(--border);
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 1rem;
-      font-size: 0.78rem;
-    }
+    /* ── Info strip ── */
+    .info-strip { background: var(--surface); border: 1.5px solid var(--border); border-radius: 4px; padding: 1rem 1.8rem; box-shadow: 3px 3px 0 var(--border); display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; font-size: 0.78rem; }
+    .info-item strong { display: block; font-family: 'Courier Prime', monospace; font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
+    @media (max-width: 560px) { .info-strip { grid-template-columns: 1fr; } }
 
-    .info-item strong {
-      display: block;
-      font-family: 'Courier Prime', monospace;
-      font-size: 0.65rem;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-      margin-bottom: 0.2rem;
-    }
-
-    @media (max-width: 600px) {
-      .moisture-value { font-size: 3.5rem; }
-      .info-strip { grid-template-columns: 1fr; }
-      header { flex-wrap: wrap; }
-      .status-dot { margin-left: 0; }
-    }
+    /* ── Threshold note ── */
+    .threshold-note { font-size: 0.72rem; color: var(--muted); font-family: 'Courier Prime', monospace; margin-top: 0.6rem; }
   </style>
 </head>
 <body>
@@ -297,10 +198,10 @@
 <header>
   <div class="header-icon">🌱</div>
   <div class="header-text">
-    <h1>Soil Moisture Monitor</h1>
-    <p>NodeMcu V3 · YL-69 · Google Sheets</p>
+    <h1>Soil Monitor v2</h1>
+    <p>ESP32 · YL-69 · SR04M-2 · Google Sheets</p>
   </div>
-  <div class="status-dot">
+  <div class="live-badge">
     <div class="dot" id="liveDot"></div>
     <span id="liveLabel">Connecting…</span>
   </div>
@@ -308,290 +209,296 @@
 
 <main>
 
-  <!-- ── Current Reading ── -->
+  <!-- ── Live Readings ── -->
   <div class="card">
-    <div class="card-label">📡 Latest Reading</div>
-    <div class="live-reading">
-      <div class="moisture-value" id="moistureVal">--</div>
-      <div class="moisture-unit">%</div>
-      <div class="moisture-label">
-        <div class="condition" id="conditionText">—</div>
-        <div class="timestamp" id="timestampText">Fetching data…</div>
+    <div class="card-label">📡 Live Readings</div>
+    <div class="live-grid">
+
+      <!-- Moisture -->
+      <div>
+        <div style="font-family:'Courier Prime',monospace;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Soil Moisture</div>
+        <div class="readout">
+          <div class="big-num" id="moistureVal">--</div>
+          <div class="unit">%</div>
+        </div>
+        <div class="gauge"><div class="gauge-fill" id="mGauge"></div></div>
+        <div class="gauge-ticks"><span>0% Dry</span><span>50%</span><span>100% Wet</span></div>
+        <div class="sub-text" id="moistureCond" style="margin-top:.5rem">—</div>
+      </div>
+
+      <!-- Distance / Water Level -->
+      <div>
+        <div style="font-family:'Courier Prime',monospace;font-size:0.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.5rem;">Distance to Surface</div>
+        <div class="readout">
+          <div class="big-num blue" id="distVal">--</div>
+          <div class="unit">cm</div>
+        </div>
+        <div class="gauge"><div class="gauge-fill blue" id="dGauge"></div></div>
+        <div class="gauge-ticks"><span>0 cm</span><span>25 cm</span><span>50 cm+</span></div>
+
+        <!-- Water at top badge -->
+        <div class="water-badge unknown" id="waterBadge" style="margin-top:.8rem">
+          <div class="badge-dot"></div>
+          <span id="waterText">Waiting for data…</span>
+        </div>
+        <div class="threshold-note" id="threshNote"></div>
       </div>
     </div>
-    <div class="gauge-bar">
-      <div class="gauge-fill" id="gaugeFill"></div>
-    </div>
-    <div class="gauge-ticks">
-      <span>0% DRY</span>
-      <span>25%</span>
-      <span>50%</span>
-      <span>75%</span>
-      <span>100% WET</span>
-    </div>
+    <div class="sub-text" id="lastUpdated" style="margin-top:1rem;border-top:1px dashed var(--border);padding-top:.6rem">Last updated: —</div>
   </div>
 
-  <!-- ── 7-Day Chart ── -->
+  <!-- ── Charts ── -->
   <div class="chart-card">
     <div class="chart-header">
-      <div class="chart-title">📈 7-Day Trend</div>
-      <div class="chart-meta" id="meta7">Loading…</div>
+      <div class="chart-title">📈 Moisture & Distance Trend</div>
+      <div class="chart-meta" id="chartMeta">Loading…</div>
+    </div>
+    <div class="tab-strip">
+      <button class="tab active" onclick="switchRange(7, this)">7 days</button>
+      <button class="tab" onclick="switchRange(30, this)">30 days</button>
     </div>
     <div class="chart-wrap">
-      <div class="placeholder" id="loading7">
-        <div class="spinner"></div>
-        <span>Fetching 7-day data…</span>
-      </div>
-      <canvas id="chart7" style="display:none"></canvas>
-    </div>
-  </div>
-
-  <!-- ── 30-Day Chart ── -->
-  <div class="chart-card">
-    <div class="chart-header">
-      <div class="chart-title">📊 30-Day Trend</div>
-      <div class="chart-meta" id="meta30">Loading…</div>
-    </div>
-    <div class="chart-wrap">
-      <div class="placeholder" id="loading30">
-        <div class="spinner"></div>
-        <span>Fetching 30-day data…</span>
-      </div>
-      <canvas id="chart30" style="display:none"></canvas>
+      <div class="placeholder" id="chartLoading"><div class="spinner"></div><span>Fetching data…</span></div>
+      <canvas id="mainChart" style="display:none"></canvas>
     </div>
   </div>
 
   <!-- ── Info Strip ── -->
   <div class="info-strip">
-    <div class="info-item">
-      <strong>Hardware</strong>
-      LoLin NodeMcu V3 (ESP8266) + YL-69
-    </div>
-    <div class="info-item">
-      <strong>Update Rate</strong>
-      Every 5 seconds (live refresh every 30s)
-    </div>
-    <div class="info-item">
-      <strong>Sampling</strong>
-      Charts show ≤200 evenly-spaced points
-    </div>
+    <div class="info-item"><strong>Hardware</strong>ESP32-WROOM-32 + YL-69 + SR04M-2</div>
+    <div class="info-item"><strong>Update rate</strong>Every 5 s (dashboard refresh 30 s)</div>
+    <div class="info-item"><strong>Chart sampling</strong>≤200 points per range</div>
   </div>
 
 </main>
 
 <script>
-  // ============================================================
-  // IMPORTANT: Paste your Google Apps Script Web App URL below
-  // It looks like: https://script.google.com/macros/s/ABC.../exec
-  // ============================================================
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzmeoiCr7vPmtKUITH28QZ32e_byIi-W-8XzApVcQavPh7EkkAncj-DBxgR6vp1qNs/exec";
+  // ── EDIT THIS ──────────────────────────────────────────────────
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLfX-b0FHLytZF-xZxCCN_8pbUTGqWASLrBif_Kus9qqTRzyoZmu69e6wb2K69pjEh6Q/exec";
 
-  // ---- Refresh intervals (milliseconds) ----
-  const LIVE_INTERVAL_MS  = 30_000;  // re-fetch latest reading every 30s
-  const CHART_INTERVAL_MS = 300_000; // re-fetch chart data every 5 minutes
+  // Must match WATER_THRESHOLD_CM in Code.gs AND soil_monitor_v2.ino
+  const WATER_THRESHOLD_CM = 5.0;
 
-  // ---- Chart.js instances (kept so we can destroy/redraw) ----
-  let chart7  = null;
-  let chart30 = null;
+  // Maximum distance the sensor can show on the gauge (for scaling)
+  const MAX_DIST_DISPLAY = 50;
+  // ──────────────────────────────────────────────────────────────
 
-  // ============================================================
-  // 1. LIVE READING
-  // ============================================================
+  const LIVE_INTERVAL  = 30_000;
+  const CHART_INTERVAL = 300_000;
+
+  let mainChart   = null;
+  let activeRange = 7;
+
+  // ── Live reading ──────────────────────────────────────────────
   async function fetchLatest() {
     try {
-      const url = `${SCRIPT_URL}?action=latest&cachebust=${Date.now()}`;
-      const res  = await fetch(url);
+      const res  = await fetch(`${SCRIPT_URL}?action=latest&t=${Date.now()}`);
       const json = await res.json();
+      if (json.status !== "ok" || !json.data && json.moisture == null) return;
 
-      if (json.status !== "ok" || json.moisture === null) return;
+      updateLive(json.moisture, json.distance_cm, json.water_detected, json.timestamp);
 
-      const val = Math.round(json.moisture);
-      updateLiveCard(val, json.timestamp);
-
-      // Show live dot
-      document.getElementById("liveDot").classList.add("live");
+      document.getElementById("liveDot").classList.add("on");
       document.getElementById("liveLabel").textContent = "Live";
-    } catch (err) {
+    } catch(e) {
       document.getElementById("liveLabel").textContent = "Offline";
-      console.warn("fetchLatest error:", err);
     }
   }
 
-  function updateLiveCard(val, ts) {
-    const valEl   = document.getElementById("moistureVal");
-    const fillEl  = document.getElementById("gaugeFill");
-    const condEl  = document.getElementById("conditionText");
-    const timeEl  = document.getElementById("timestampText");
+  function updateLive(moisture, distCm, waterDetected, ts) {
+    // Moisture
+    const mVal  = Math.round(moisture ?? 0);
+    const mEl   = document.getElementById("moistureVal");
+    const mG    = document.getElementById("mGauge");
+    const mCond = document.getElementById("moistureCond");
 
-    valEl.textContent  = val;
-    fillEl.style.width = val + "%";
+    mEl.textContent  = moisture != null ? mVal : "--";
+    mG.style.width   = mVal + "%";
+    mEl.className    = "big-num";
+    mG.className     = "gauge-fill";
 
-    // Remove old state classes
-    valEl.classList.remove("warn", "dry");
-    fillEl.classList.remove("warn", "dry");
+    if (moisture != null) {
+      if (mVal < 20)      { mEl.classList.add("dry");  mG.classList.add("dry");  mCond.textContent = "⚠ Very dry — water immediately"; }
+      else if (mVal < 40) { mEl.classList.add("warn"); mG.classList.add("warn"); mCond.textContent = "Dry — water soon"; }
+      else if (mVal < 70) {                                                        mCond.textContent = "✓ Good moisture"; }
+      else if (mVal < 85) {                                                        mCond.textContent = "Moist"; }
+      else                {                                                        mCond.textContent = "Very wet"; }
+    }
 
-    // Soil condition thresholds
-    let condition = "";
-    if (val < 20) {
-      condition = "🔴 Very Dry — Water Now!";
-      valEl.classList.add("dry");
-      fillEl.classList.add("dry");
-    } else if (val < 40) {
-      condition = "🟠 Dry — Water Soon";
-      valEl.classList.add("warn");
-      fillEl.classList.add("warn");
-    } else if (val < 70) {
-      condition = "🟢 Good Moisture";
-    } else if (val < 85) {
-      condition = "🔵 Moist";
+    // Distance
+    const dEl = document.getElementById("distVal");
+    const dG  = document.getElementById("dGauge");
+    const dPct = distCm != null && distCm > 0
+      ? Math.min(100, (distCm / MAX_DIST_DISPLAY) * 100) : 0;
+
+    dEl.textContent = distCm != null && distCm > 0 ? distCm.toFixed(1) : "--";
+    dG.style.width  = dPct + "%";
+
+    // Water badge
+    const badge    = document.getElementById("waterBadge");
+    const badgeTxt = document.getElementById("waterText");
+    const thNote   = document.getElementById("threshNote");
+
+    badge.className = "water-badge";
+    if (distCm == null || distCm < 0) {
+      badge.classList.add("unknown");
+      badgeTxt.textContent = "Sensor reading unavailable";
+    } else if (waterDetected) {
+      badge.classList.add("yes");
+      badgeTxt.textContent = "WATER DETECTED at soil surface";
     } else {
-      condition = "💧 Very Wet";
+      badge.classList.add("no");
+      badgeTxt.textContent = "No water at surface";
     }
+    thNote.textContent = `Threshold: ${WATER_THRESHOLD_CM} cm — distance below this = water present`;
 
-    condEl.textContent = condition;
-    timeEl.textContent = "Last updated: " + (ts || "—");
+    document.getElementById("lastUpdated").textContent = "Last updated: " + (ts || "—");
   }
 
-  // ============================================================
-  // 2. CHART DATA
-  // ============================================================
-  async function fetchChartData(days, canvasId, loadingId, metaId, chartRef) {
-    try {
-      const url = `${SCRIPT_URL}?action=range&days=${days}&cachebust=${Date.now()}`;
-      const res  = await fetch(url);
-      const json = await res.json();
+  // ── Chart ─────────────────────────────────────────────────────
+  async function fetchChartData(days) {
+    document.getElementById("chartLoading").style.display = "flex";
+    document.getElementById("mainChart").style.display    = "none";
+    document.getElementById("chartMeta").textContent      = "Loading…";
 
-      if (json.status !== "ok" || !json.data || json.data.length === 0) {
-        document.getElementById(loadingId).innerHTML =
-          '<span style="color:var(--muted);font-size:0.85rem">No data yet for this range.</span>';
-        return null;
+    try {
+      const res  = await fetch(`${SCRIPT_URL}?action=range&days=${days}&t=${Date.now()}`);
+      const json = await res.json();
+      if (json.status !== "ok" || !json.data?.length) {
+        document.getElementById("chartLoading").innerHTML =
+          '<span style="color:var(--muted)">No data yet for this range.</span>';
+        return;
       }
 
-      // Update meta label
-      document.getElementById(metaId).textContent =
-        `${json.count} sampled points · ${days} days`;
+      document.getElementById("chartMeta").textContent =
+        `${json.count} points · ${days} days`;
 
-      // Show canvas, hide spinner
-      document.getElementById(loadingId).style.display = "none";
-      const canvas = document.getElementById(canvasId);
+      const labels   = json.data.map(d => {
+        const dt = new Date(d.timestamp);
+        return dt.toLocaleDateString(undefined, { month:"short", day:"numeric" })
+          + " " + dt.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit" });
+      });
+      const moisture = json.data.map(d => d.moisture);
+      const distance = json.data.map(d => d.distance_cm > 0 ? d.distance_cm : null);
+      // Mark water-detected points
+      const waterPts = json.data.map((d, i) => d.water_detected ? moisture[i] : null);
+
+      document.getElementById("chartLoading").style.display = "none";
+      const canvas = document.getElementById("mainChart");
       canvas.style.display = "block";
 
-      // Prepare labels (date + time) and values
-      const labels = json.data.map(d => {
-        const dt = new Date(d.timestamp);
-        return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" })
-          + " " + dt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-      });
-      const values = json.data.map(d => d.moisture);
+      if (mainChart) mainChart.destroy();
+      const ctx = canvas.getContext("2d");
 
-      return drawChart(canvas, labels, values, chartRef);
+      const mGrad = ctx.createLinearGradient(0, 0, 0, 210);
+      mGrad.addColorStop(0, "rgba(58,125,68,0.2)");
+      mGrad.addColorStop(1, "rgba(58,125,68,0)");
 
-    } catch (err) {
-      document.getElementById(loadingId).innerHTML =
-        '<span style="color:var(--danger);font-size:0.85rem">⚠ Could not load chart data.</span>';
-      console.warn(`fetchChartData(${days}) error:`, err);
-      return null;
-    }
-  }
-
-  function drawChart(canvas, labels, values, existingChart) {
-    // Destroy old chart before redrawing (prevents memory leaks)
-    if (existingChart) existingChart.destroy();
-
-    const ctx = canvas.getContext("2d");
-
-    // Gradient fill under line
-    const gradient = ctx.createLinearGradient(0, 0, 0, 220);
-    gradient.addColorStop(0,   "rgba(58, 125, 68, 0.22)");
-    gradient.addColorStop(1,   "rgba(58, 125, 68, 0)");
-
-    return new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: labels,
-        datasets: [{
-          label: "Moisture %",
-          data: values,
-          borderColor: "#3a7d44",
-          borderWidth: 2,
-          backgroundColor: gradient,
-          pointRadius: values.length > 100 ? 0 : 3,   // Hide dots if many points
-          pointHoverRadius: 5,
-          pointBackgroundColor: "#3a7d44",
-          tension: 0.35,
-          fill: true,
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        interaction: { mode: "index", intersect: false },
-        scales: {
-          x: {
-            ticks: {
-              maxTicksLimit: 8,
-              maxRotation: 30,
-              font: { family: "'Courier Prime', monospace", size: 10 },
-              color: "#7a6f60",
+      mainChart = new Chart(ctx, {
+        data: {
+          labels,
+          datasets: [
+            {
+              type: "line",
+              label: "Moisture %",
+              data: moisture,
+              borderColor: "#3a7d44",
+              borderWidth: 2,
+              backgroundColor: mGrad,
+              pointRadius: moisture.length > 80 ? 0 : 2,
+              pointHoverRadius: 4,
+              tension: 0.35,
+              fill: true,
+              yAxisID: "yM",
             },
-            grid: { color: "rgba(0,0,0,0.05)" },
-            border: { color: "#c8bfa8" },
-          },
-          y: {
-            min: 0,
-            max: 100,
-            ticks: {
-              stepSize: 25,
-              callback: v => v + "%",
-              font: { family: "'Courier Prime', monospace", size: 10 },
-              color: "#7a6f60",
+            {
+              type: "line",
+              label: "Distance (cm)",
+              data: distance,
+              borderColor: "#2471a3",
+              borderWidth: 1.5,
+              backgroundColor: "transparent",
+              pointRadius: 0,
+              pointHoverRadius: 4,
+              tension: 0.3,
+              borderDash: [4, 3],
+              yAxisID: "yD",
             },
-            grid: { color: "rgba(0,0,0,0.05)" },
-            border: { color: "#c8bfa8" },
-          }
+            {
+              type: "scatter",
+              label: "Water detected",
+              data: waterPts.map((v, i) => v !== null ? { x: labels[i], y: v } : null).filter(Boolean),
+              backgroundColor: "#27ae60",
+              pointRadius: 4,
+              pointStyle: "circle",
+              yAxisID: "yM",
+            }
+          ]
         },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#fffdf8",
-            titleColor: "#2a2118",
-            bodyColor: "#3a7d44",
-            borderColor: "#c8bfa8",
-            borderWidth: 1,
-            titleFont: { family: "'Courier Prime', monospace", size: 11 },
-            bodyFont: { family: "'DM Sans', sans-serif", size: 13, weight: "700" },
-            callbacks: {
-              label: ctx => "  Moisture: " + ctx.parsed.y.toFixed(1) + "%"
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: "index", intersect: false },
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 7, maxRotation: 30, font: { family: "'Courier Prime', monospace", size: 10 }, color: "#7a6f60" },
+              grid:  { color: "rgba(0,0,0,0.04)" },
+              border:{ color: "#c8bfa8" },
+            },
+            yM: {
+              type: "linear", position: "left",
+              min: 0, max: 100,
+              ticks: { stepSize: 25, callback: v => v + "%", font: { family: "'Courier Prime', monospace", size: 10 }, color: "#3a7d44" },
+              grid:  { color: "rgba(0,0,0,0.04)" },
+              border:{ color: "#c8bfa8" },
+            },
+            yD: {
+              type: "linear", position: "right",
+              min: 0,
+              ticks: { callback: v => v + " cm", font: { family: "'Courier Prime', monospace", size: 10 }, color: "#2471a3" },
+              grid:  { drawOnChartArea: false },
+              border:{ color: "#c8bfa8" },
+            }
+          },
+          plugins: {
+            legend: {
+              display: true,
+              labels: { font: { family: "'DM Sans', sans-serif", size: 11 }, color: "#7a6f60", boxWidth: 16, padding: 12 }
+            },
+            tooltip: {
+              backgroundColor: "#fffdf8",
+              titleColor: "#2a2118",
+              bodyColor: "#555",
+              borderColor: "#c8bfa8",
+              borderWidth: 1,
+              titleFont: { family: "'Courier Prime', monospace", size: 11 },
+              bodyFont:  { family: "'DM Sans', sans-serif", size: 12 },
             }
           }
         }
-      }
-    });
+      });
+    } catch(e) {
+      document.getElementById("chartLoading").innerHTML =
+        '<span style="color:var(--danger)">⚠ Could not load chart data.</span>';
+    }
   }
 
-  // ============================================================
-  // 3. INIT — Load everything, then set refresh intervals
-  // ============================================================
+  function switchRange(days, btn) {
+    activeRange = days;
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    btn.classList.add("active");
+    fetchChartData(days);
+  }
+
+  // ── Init ──────────────────────────────────────────────────────
   async function init() {
-    // Load live reading immediately
     await fetchLatest();
-
-    // Load chart data
-    chart7  = await fetchChartData(7,  "chart7",  "loading7",  "meta7",  chart7);
-    chart30 = await fetchChartData(30, "chart30", "loading30", "meta30", chart30);
-
-    // Auto-refresh live reading
-    setInterval(fetchLatest, LIVE_INTERVAL_MS);
-
-    // Auto-refresh charts (less frequent, they carry more data)
-    setInterval(async () => {
-      chart7  = await fetchChartData(7,  "chart7",  "loading7",  "meta7",  chart7);
-      chart30 = await fetchChartData(30, "chart30", "loading30", "meta30", chart30);
-    }, CHART_INTERVAL_MS);
+    await fetchChartData(activeRange);
+    setInterval(fetchLatest, LIVE_INTERVAL);
+    setInterval(() => fetchChartData(activeRange), CHART_INTERVAL);
   }
 
   init();
 </script>
-
 </body>
 </html>
