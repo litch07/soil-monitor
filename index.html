@@ -61,7 +61,8 @@
       letter-spacing: 0.05em;
     }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-    .dot.on { background: var(--good); animation: pulse 2s infinite; }
+    .dot.on  { background: var(--good);   animation: pulse 2s infinite; }
+    .dot.err { background: var(--danger); }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
     main {
@@ -72,6 +73,19 @@
       flex-direction: column;
       gap: 1.5rem;
     }
+
+    /* ── Error banner ── */
+    .error-banner {
+      display: none;
+      background: #fdf2f2;
+      border: 1.5px solid var(--danger);
+      border-radius: 4px;
+      padding: 0.9rem 1.4rem;
+      font-family: 'Courier Prime', monospace;
+      font-size: 0.8rem;
+      color: var(--danger);
+    }
+    .error-banner.show { display: block; }
 
     /* ── Cards ── */
     .card {
@@ -138,21 +152,9 @@
       margin-bottom: 0.8rem;
       transition: all 0.4s;
     }
-    .water-badge.yes {
-      background: #e8f5e9;
-      color: #1b5e20;
-      border-color: #43a047;
-    }
-    .water-badge.no {
-      background: #fff3e0;
-      color: #e65100;
-      border-color: #fb8c00;
-    }
-    .water-badge.unknown {
-      background: #f5f0e8;
-      color: var(--muted);
-      border-color: var(--border);
-    }
+    .water-badge.yes     { background: #e8f5e9; color: #1b5e20; border-color: #43a047; }
+    .water-badge.no      { background: #fff3e0; color: #e65100; border-color: #fb8c00; }
+    .water-badge.unknown { background: #f5f0e8; color: var(--muted); border-color: var(--border); }
     .badge-dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
 
     .sub-text { font-size: 0.72rem; color: var(--muted); font-family: 'Courier Prime', monospace; }
@@ -189,7 +191,6 @@
     .info-item strong { display: block; font-family: 'Courier Prime', monospace; font-size: 0.63rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 0.2rem; }
     @media (max-width: 560px) { .info-strip { grid-template-columns: 1fr; } }
 
-    /* ── Threshold note ── */
     .threshold-note { font-size: 0.72rem; color: var(--muted); font-family: 'Courier Prime', monospace; margin-top: 0.6rem; }
   </style>
 </head>
@@ -208,6 +209,13 @@
 </header>
 
 <main>
+
+  <!-- ── Error banner (shown on fetch failure) ── -->
+  <div class="error-banner" id="errorBanner">
+    ⚠ Could not reach the Apps Script endpoint. Check that the Web App is deployed with
+    <strong>Who has access: Anyone</strong> and that the SCRIPT_URL below matches your
+    latest deployment URL.
+  </div>
 
   <!-- ── Live Readings ── -->
   <div class="card">
@@ -236,7 +244,6 @@
         <div class="gauge"><div class="gauge-fill blue" id="dGauge"></div></div>
         <div class="gauge-ticks"><span>0 cm</span><span>25 cm</span><span>50 cm+</span></div>
 
-        <!-- Water at top badge -->
         <div class="water-badge unknown" id="waterBadge" style="margin-top:.8rem">
           <div class="badge-dot"></div>
           <span id="waterText">Waiting for data…</span>
@@ -250,7 +257,7 @@
   <!-- ── Charts ── -->
   <div class="chart-card">
     <div class="chart-header">
-      <div class="chart-title">📈 Moisture & Distance Trend</div>
+      <div class="chart-title">📈 Moisture &amp; Distance Trend</div>
       <div class="chart-meta" id="chartMeta">Loading…</div>
     </div>
     <div class="tab-strip">
@@ -274,67 +281,95 @@
 
 <script>
   // ── EDIT THIS ──────────────────────────────────────────────────
-  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwLfX-b0FHLytZF-xZxCCN_8pbUTGqWASLrBif_Kus9qqTRzyoZmu69e6wb2K69pjEh6Q/exec";
+  // Paste your deployed Apps Script /exec URL here.
+  // Must match the URL in soil_monitor_v2.ino and Code.gs deployment.
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz8BWyxGndssIWssUWBJcnDl6wV_uXL5pamI-ClLzRvD6ydnbqA3cKESBJe7y3rKqSq/exec";
 
-  // Must match WATER_THRESHOLD_CM in Code.gs AND soil_monitor_v2.ino
+  // Must match WATER_THRESHOLD_CM in Code.gs and soil_monitor_v2.ino
   const WATER_THRESHOLD_CM = 5.0;
 
   // Maximum distance the sensor can show on the gauge (for scaling)
   const MAX_DIST_DISPLAY = 50;
   // ──────────────────────────────────────────────────────────────
 
-  const LIVE_INTERVAL  = 30_000;
-  const CHART_INTERVAL = 300_000;
+  const LIVE_INTERVAL  = 30_000;   // 30 s
+  const CHART_INTERVAL = 300_000;  // 5 min
 
   let mainChart   = null;
   let activeRange = 7;
 
+  // ── Fetch helpers ─────────────────────────────────────────────
+  // Apps Script redirects to a different host on every call.
+  // Using no-cors would give an opaque response we can't read, so
+  // we use cors mode (which Apps Script supports for doGet) and
+  // follow redirects. For doPost the ESP32 handles that itself.
+  async function apiFetch(params) {
+    const url = `${SCRIPT_URL}?${params}&_=${Date.now()}`;
+    const res = await fetch(url, {
+      method:   "GET",
+      redirect: "follow",
+      // No custom headers — avoids CORS preflight which Apps Script
+      // does not handle for the initial /exec URL.
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
   // ── Live reading ──────────────────────────────────────────────
   async function fetchLatest() {
     try {
-      const res  = await fetch(`${SCRIPT_URL}?action=latest&t=${Date.now()}`);
-      const json = await res.json();
-      if (json.status !== "ok" || !json.data && json.moisture == null) return;
+      const json = await apiFetch("action=latest");
+
+      if (json.status !== "ok") throw new Error(json.message || "bad status");
+
+      // json.data === null means the sheet exists but has no data rows yet
+      if (json.data === null && json.moisture == null) {
+        document.getElementById("liveLabel").textContent = "No data yet";
+        return;
+      }
 
       updateLive(json.moisture, json.distance_cm, json.water_detected, json.timestamp);
-
-      document.getElementById("liveDot").classList.add("on");
+      document.getElementById("liveDot").className  = "dot on";
       document.getElementById("liveLabel").textContent = "Live";
+      document.getElementById("errorBanner").classList.remove("show");
     } catch(e) {
+      document.getElementById("liveDot").className  = "dot err";
       document.getElementById("liveLabel").textContent = "Offline";
+      document.getElementById("errorBanner").classList.add("show");
+      console.error("fetchLatest error:", e);
     }
   }
 
   function updateLive(moisture, distCm, waterDetected, ts) {
-    // Moisture
-    const mVal  = Math.round(moisture ?? 0);
+    // ── Moisture ──
+    const mVal  = (moisture != null) ? Math.round(moisture) : null;
     const mEl   = document.getElementById("moistureVal");
     const mG    = document.getElementById("mGauge");
     const mCond = document.getElementById("moistureCond");
 
-    mEl.textContent  = moisture != null ? mVal : "--";
-    mG.style.width   = mVal + "%";
+    mEl.textContent  = mVal != null ? mVal : "--";
+    mG.style.width   = (mVal != null ? mVal : 0) + "%";
     mEl.className    = "big-num";
     mG.className     = "gauge-fill";
 
-    if (moisture != null) {
-      if (mVal < 20)      { mEl.classList.add("dry");  mG.classList.add("dry");  mCond.textContent = "⚠ Very dry — water immediately"; }
+    if (mVal != null) {
+      if      (mVal < 20) { mEl.classList.add("dry");  mG.classList.add("dry");  mCond.textContent = "⚠ Very dry — water immediately"; }
       else if (mVal < 40) { mEl.classList.add("warn"); mG.classList.add("warn"); mCond.textContent = "Dry — water soon"; }
       else if (mVal < 70) {                                                        mCond.textContent = "✓ Good moisture"; }
       else if (mVal < 85) {                                                        mCond.textContent = "Moist"; }
       else                {                                                        mCond.textContent = "Very wet"; }
     }
 
-    // Distance
-    const dEl = document.getElementById("distVal");
-    const dG  = document.getElementById("dGauge");
-    const dPct = distCm != null && distCm > 0
+    // ── Distance ──
+    const dEl  = document.getElementById("distVal");
+    const dG   = document.getElementById("dGauge");
+    const dPct = (distCm != null && distCm > 0)
       ? Math.min(100, (distCm / MAX_DIST_DISPLAY) * 100) : 0;
 
-    dEl.textContent = distCm != null && distCm > 0 ? distCm.toFixed(1) : "--";
+    dEl.textContent = (distCm != null && distCm > 0) ? distCm.toFixed(1) : "--";
     dG.style.width  = dPct + "%";
 
-    // Water badge
+    // ── Water badge ──
     const badge    = document.getElementById("waterBadge");
     const badgeTxt = document.getElementById("waterText");
     const thNote   = document.getElementById("threshNote");
@@ -358,13 +393,15 @@
   // ── Chart ─────────────────────────────────────────────────────
   async function fetchChartData(days) {
     document.getElementById("chartLoading").style.display = "flex";
+    document.getElementById("chartLoading").innerHTML     =
+      '<div class="spinner"></div><span>Fetching data…</span>';
     document.getElementById("mainChart").style.display    = "none";
     document.getElementById("chartMeta").textContent      = "Loading…";
 
     try {
-      const res  = await fetch(`${SCRIPT_URL}?action=range&days=${days}&t=${Date.now()}`);
-      const json = await res.json();
-      if (json.status !== "ok" || !json.data?.length) {
+      const json = await apiFetch(`action=range&days=${days}`);
+
+      if (json.status !== "ok" || !json.data || json.data.length === 0) {
         document.getElementById("chartLoading").innerHTML =
           '<span style="color:var(--muted)">No data yet for this range.</span>';
         return;
@@ -379,9 +416,7 @@
           + " " + dt.toLocaleTimeString(undefined, { hour:"2-digit", minute:"2-digit" });
       });
       const moisture = json.data.map(d => d.moisture);
-      const distance = json.data.map(d => d.distance_cm > 0 ? d.distance_cm : null);
-      // Mark water-detected points
-      const waterPts = json.data.map((d, i) => d.water_detected ? moisture[i] : null);
+      const distance = json.data.map(d => (d.distance_cm > 0) ? d.distance_cm : null);
 
       document.getElementById("chartLoading").style.display = "none";
       const canvas = document.getElementById("mainChart");
@@ -425,9 +460,12 @@
               yAxisID: "yD",
             },
             {
+              // Scatter overlay: mark points where water was detected
               type: "scatter",
               label: "Water detected",
-              data: waterPts.map((v, i) => v !== null ? { x: labels[i], y: v } : null).filter(Boolean),
+              data: json.data
+                .map((d, i) => d.water_detected ? { x: labels[i], y: moisture[i] } : null)
+                .filter(Boolean),
               backgroundColor: "#27ae60",
               pointRadius: 4,
               pointStyle: "circle",
@@ -477,9 +515,11 @@
           }
         }
       });
+
     } catch(e) {
       document.getElementById("chartLoading").innerHTML =
         '<span style="color:var(--danger)">⚠ Could not load chart data.</span>';
+      console.error("fetchChartData error:", e);
     }
   }
 
@@ -494,7 +534,7 @@
   async function init() {
     await fetchLatest();
     await fetchChartData(activeRange);
-    setInterval(fetchLatest, LIVE_INTERVAL);
+    setInterval(fetchLatest,                    LIVE_INTERVAL);
     setInterval(() => fetchChartData(activeRange), CHART_INTERVAL);
   }
 
